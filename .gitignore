@@ -1,2 +1,8 @@
 __pycache__/
 *.pyc
+
+# Generated artefacts. The scene rebuilds them from build_classroom.py, so they
+# are noise in history - except the one preview and the one glb we track.
+renders/*
+!renders/preview.png
+classroom_stage*.glb

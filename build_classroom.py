@@ -49,7 +49,7 @@ from mathutils import Euler, Matrix, Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 GLB_PATH = os.path.join(HERE, "classroom.glb")
 RENDER_DIR = os.path.join(HERE, "renders")
-RENDER_PATH = os.path.join(RENDER_DIR, "classroom_iso.png")
+RENDER_PATH = os.path.join(RENDER_DIR, "preview.png")
 FONT_PATH = os.path.join(HERE, "assets", "fonts", "Nunito-ExtraBold.ttf")
 
 # ---------------------------------------------------------------------------
