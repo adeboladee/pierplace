@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Learn2Earn Life &mdash; Classroom (Stage 1)</title>
+
+<style>
+  :root {
+    --bg: #10141a;
+    --panel: rgba(20, 25, 33, 0.82);
+    --line: rgba(255, 255, 255, 0.12);
+    --text: #e8edf4;
+    --muted: #93a1b3;
+    --brand: #1e5eff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  canvas { display: block; }
+
+  #hud {
+    position: fixed; top: 14px; left: 14px; z-index: 10;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    backdrop-filter: blur(8px);
+    min-width: 230px;
+  }
+  #hud h1 { margin: 0 0 2px; font-size: 14px; letter-spacing: .2px; }
+  #hud .sub { color: var(--muted); font-size: 11px; margin-bottom: 10px; }
+  #hud button {
+    display: block; width: 100%; margin-top: 6px;
+    background: rgba(255,255,255,.06); color: var(--text);
+    border: 1px solid var(--line); border-radius: 7px;
+    padding: 7px 10px; font: inherit; cursor: pointer; text-align: left;
+  }
+  #hud button:hover { background: rgba(255,255,255,.12); }
+  #hud button.on { border-color: var(--brand); background: rgba(30,94,255,.22); }
+  #hud hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0 4px; }
+  #hud .stat { color: var(--muted); font-size: 11px; margin-top: 8px; }
+
+  #loading {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: var(--bg); z-index: 20; text-align: center;
+  }
+  #loading .bar {
+    width: 220px; height: 3px; margin-top: 14px;
+    background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden;
+  }
+  #loading .bar i { display: block; height: 100%; width: 0; background: var(--brand); transition: width .2s; }
+  #err { color: #ff8080; margin-top: 12px; max-width: 520px; }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="loading">
+  <div>
+    <div id="msg">Loading classroom.glb &hellip;</div>
+    <div class="bar"><i id="bar"></i></div>
+    <div id="err"></div>
+  </div>
+</div>
+
+<div id="hud" style="display:none">
+  <h1>Learn2Earn Life &mdash; Classroom</h1>
+  <div class="sub">Stage 1 &middot; room shell</div>
+
+  <button id="btn-view">Camera: isometric</button>
+  <button id="btn-night">Night mode</button>
+  <button id="btn-glass">Glass: on</button>
+  <button id="btn-wire">Wireframe</button>
+  <button id="btn-fit">Reset view</button>
+
+  <hr />
+  <div class="stat" id="stats">&nbsp;</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const GLB_URL = '../classroom.glb';
+const RUNTIME_LIGHT_RE = /^(light_ceiling_|light_track_|light_pendant_)/;
+const SCREEN_MAT_RE = /^screen_laptop_/;
+
+const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------------------
+// Renderer / scene / camera
+// ---------------------------------------------------------------------------
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x10141a);
+
+// The glTF carries no area lights, so the viewer supplies its own rig.
+const hemi = new THREE.HemisphereLight(0xdfe8f2, 0x2a3038, 1.1);
+scene.add(hemi);
+
+const key = new THREE.DirectionalLight(0xfff3e2, 2.0);
+key.position.set(-11, 14, 12);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.bias = -0.0012;
+{
+  const c = key.shadow.camera;
+  c.left = -16; c.right = 16; c.top = 16; c.bottom = -16;
+  c.near = 1; c.far = 60;
+  c.updateProjectionMatrix();
+}
+scene.add(key);
+
+const rim = new THREE.DirectionalLight(0xcfe0ff, 0.55);
+rim.position.set(10, 7, -12);
+scene.add(rim);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 400);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.minDistance = 6;
+controls.maxDistance = 120;
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+const loader = new GLTFLoader();
+let model = null;
+const gltfLights = [];   // lights that came out of the .glb (runtime hooks)
+const screenMats = [];   // screen_laptop_* materials
+const glassMats = [];
+
+loader.load(
+  GLB_URL,
+  (gltf) => {
+    model = gltf.scene;
+    scene.add(model);
+
+    model.traverse((o) => {
+      if (o.isLight && RUNTIME_LIGHT_RE.test(o.name)) gltfLights.push(o);
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats) {
+          if (!m) continue;
+          // Hook: every laptop display shares one of three screen_laptop_* materials.
+          if (SCREEN_MAT_RE.test(m.name)) screenMats.push(m);
+          if (m.transmission > 0 || (m.opacity !== undefined && m.opacity < 1)) {
+            m.transparent = true;
+            m.side = THREE.DoubleSide;
+            m.depthWrite = false;
+            glassMats.push(m);
+          }
+        }
+      }
+    });
+
+    let tris = 0;
+    model.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      const g = o.geometry;
+      const n = g.index ? g.index.count / 3 : g.attributes.position.count / 3;
+      tris += n * (Array.isArray(o.material) ? o.material.length : 1);
+    });
+
+    $('stats').textContent =
+      `${tris.toLocaleString()} tris \u00b7 ${gltfLights.length} runtime lights \u00b7 ${screenMats.length} screen mats`;
+    $('stats').title =
+      'runtime lights = light_ceiling_* / light_track_* / light_pendant_*  |  ' +
+      'screen mats = screen_laptop_* (emissive, brightened at night)';
+
+    fitView();
+    $('loading').style.display = 'none';
+    $('hud').style.display = '';
+  },
+  (evt) => {
+    if (evt.total) $('bar').style.width = (100 * evt.loaded / evt.total) + '%';
+  },
+  (err) => {
+    $('msg').textContent = 'Could not load ' + GLB_URL;
+    $('err').textContent = String(err && err.message ? err.message : err);
+  }
+);
+
+// ---------------------------------------------------------------------------
+// View presets
+// ---------------------------------------------------------------------------
+const VIEWS = {
+  iso:   { pos: [19, 21, 26], target: [0, 1.0, -0.4] },
+  front: { pos: [0, 6.5, 30],   target: [0, 1.3, -1.5] },
+  side:  { pos: [28, 7, 2],     target: [0, 1.3, 0] },
+  top:   { pos: [0, 34, 0.01],  target: [0, 0, 0] },
+};
+
+function goTo(v) {
+  camera.position.set(...VIEWS[v].pos);
+  controls.target.set(...VIEWS[v].target);
+  controls.update();
+}
+
+function fitView() {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const centre = box.getCenter(new THREE.Vector3());
+  controls.target.copy(centre);
+  const radius = size.length() / 2;
+  camera.position.set(
+    centre.x + radius * 1.35,
+    centre.y + radius * 1.15,
+    centre.z + radius * 1.75
+  );
+  camera.far = radius * 12;
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+// ---------------------------------------------------------------------------
+// Toggles
+// ---------------------------------------------------------------------------
+let viewIdx = 0;
+const viewNames = ['iso', 'front', 'side', 'top'];
+
+$('btn-view').onclick = () => {
+  viewIdx = (viewIdx + 1) % viewNames.length;
+  goTo(viewNames[viewIdx]);
+  $('btn-view').textContent = 'Camera: ' + viewNames[viewIdx];
+};
+
+$('btn-fit').onclick = fitView;
+
+let night = false;
+$('btn-night').onclick = () => {
+  night = !night;
+  $('btn-night').classList.toggle('on', night);
+  $('btn-night').textContent = 'Night mode: ' + (night ? 'on' : 'off');
+  hemi.intensity = night ? 0.12 : 1.1;
+  key.intensity = night ? 0.10 : 2.0;
+  rim.intensity = night ? 0.10 : 0.55;
+  renderer.toneMappingExposure = night ? 1.25 : 1.0;
+  // Hook: dim every light_ceiling_* / light_track_* / light_pendant_ in the glb.
+  gltfLights.forEach((l) => {
+    l.intensity = (l.userData.baseIntensity ??= l.intensity) * (night ? 0.18 : 1);
+  });
+  // Hook: screens become the main light source once the room is dark.
+  screenMats.forEach((m) => {
+    m.emissiveIntensity = (m.userData.baseEmissive ??= m.emissiveIntensity ?? 1) *
+                          (night ? 2.6 : 1);
+  });
+};
+
+let glassOn = true;
+$('btn-glass').onclick = () => {
+  glassOn = !glassOn;
+  $('btn-glass').classList.toggle('on', glassOn);
+  $('btn-glass').textContent = 'Glass: ' + (glassOn ? 'on' : 'off');
+  glassMats.forEach((m) => { m.visible = glassOn; });
+};
+
+let wire = false;
+$('btn-wire').onclick = () => {
+  wire = !wire;
+  $('btn-wire').classList.toggle('on', wire);
+  model.traverse((o) => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    mats.forEach((m) => { if (m) m.wireframe = wire; });
+  });
+};
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
